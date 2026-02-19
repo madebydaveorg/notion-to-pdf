@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Notion → PDF</title>
+<meta name="description" content="Convert any public Notion page to a clean, downloadable PDF. Free and instant."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"/>
+<style>
+:root {
+    --ink: #1a1a1a;
+    --paper: #faf9f6;
+    --cream: #f0ede6;
+    --stone: #a8a49c;
+    --accent: #c44b2b;
+    --accent-hover: #a83d22;
+    --success: #2d7a4f;
+    --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { font-size: 16px; }
+
+body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── Grain overlay ── */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+}
+
+/* ── Layout ── */
+.container {
+    width: 100%;
+    max-width: 640px;
+    padding: 0 24px;
+    margin-top: clamp(80px, 15vh, 160px);
+}
+
+/* ── Header ── */
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 48px;
+}
+.brand-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--ink);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--paper);
+    flex-shrink: 0;
+}
+.brand-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    letter-spacing: -0.3px;
+}
+
+h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(36px, 5vw, 52px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+}
+h1 .accent { color: var(--accent); }
+
+.subtitle {
+    color: var(--stone);
+    font-size: 17px;
+    line-height: 1.5;
+    margin-bottom: 40px;
+    max-width: 480px;
+}
+
+/* ── Form ── */
+.input-group {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.url-input {
+    width: 100%;
+    padding: 18px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    border: 2px solid var(--cream);
+    border-radius: var(--radius);
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.url-input::placeholder { color: var(--stone); }
+.url-input:focus {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06);
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    flex: 1;
+    padding: 16px 24px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+}
+.btn-primary:hover { background: #333; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+    background: var(--cream);
+    color: var(--ink);
+    flex: 0.5;
+}
+.btn-secondary:hover { background: #e5e1d8; }
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* ── Status ── */
+.status {
+    margin-top: 20px;
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    line-height: 1.5;
+    display: none;
+}
+.status.loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid var(--cream);
+    color: var(--stone);
+}
+.status.success {
+    display: block;
+    background: #edf7f0;
+    border: 1px solid #b8dfc5;
+    color: var(--success);
+}
+.status.error {
+    display: block;
+    background: #fdf0ed;
+    border: 1px solid #f0c4b8;
+    color: var(--accent);
+}
+
+/* spinner */
+.spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--cream);
+    border-top-color: var(--ink);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Text preview ── */
+.text-preview {
+    margin-top: 20px;
+    background: #fff;
+    border: 1px solid var(--cream);
+    border-radius: var(--radius);
+    max-height: 400px;
+    overflow-y: auto;
+    display: none;
+}
+.text-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--cream);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--stone);
+}
+.text-preview-body {
+    padding: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: var(--ink);
+}
+.copy-btn {
+    background: none;
+    border: 1px solid var(--cream);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--stone);
+    transition: all 0.15s;
+}
+.copy-btn:hover { background: var(--cream); color: var(--ink); }
+
+/* ── Features ── */
+.features {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--cream);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 80px;
+}
+.feature {
+    font-size: 13px;
+    color: var(--stone);
+    line-height: 1.5;
+}
+.feature strong {
+    display: block;
+    color: var(--ink);
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+/* ── Footer ── */
+footer {
+    margin-top: auto;
+    padding: 24px;
+    font-size: 13px;
+    color: var(--stone);
+    text-align: center;
+}
+footer a { color: var(--stone); text-decoration: underline; }
+
+/* ── Responsive ── */
+@media (max-width: 560px) {
+    .container { margin-top: 60px; }
+    .actions { flex-direction: column; }
+    .btn-secondary { flex: 1; }
+    .features { grid-template-columns: 1fr; gap: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="brand">
+        <div class="brand-icon">N</div>
+        <div class="brand-text">Notion → PDF</div>
+    </div>
+
+    <h1>Turn any Notion page<br/>into a <span class="accent">clean PDF</span></h1>
+    <p class="subtitle">Paste a public Notion link. Get a beautifully formatted PDF or plain text — instantly, free, no login.</p>
+
+    <div class="input-group">
+        <input 
+            type="url" 
+            class="url-input" 
+            id="urlInput"
+            placeholder="https://acme.notion.site/My-Page-abc123..."
+            autocomplete="off"
+            spellcheck="false"
+        />
+    </div>
+
+    <div class="actions">
+        <button class="btn btn-primary" id="pdfBtn" onclick="handleConvert('pdf')">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 1v14M12 1v14M1 5h14M1 11h14"/></svg>
+            Download PDF
+        </button>
+        <button class="btn btn-secondary" id="textBtn" onclick="handleConvert('text')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1h12M1 5h8M1 9h10M1 13h6"/></svg>
+            Text
+        </button>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="text-preview" id="textPreview">
+        <div class="text-preview-header">
+            <span id="previewTitle">Extracted Text</span>
+            <button class="copy-btn" onclick="copyText()">Copy</button>
+        </div>
+        <div class="text-preview-body" id="previewBody"></div>
+    </div>
+
+    <div class="features">
+        <div class="feature">
+            <strong>Public pages only</strong>
+            The page must have "Share to web" enabled in Notion.
+        </div>
+        <div class="feature">
+            <strong>All block types</strong>
+            Headings, lists, code, callouts, quotes, tables, images & more.
+        </div>
+        <div class="feature">
+            <strong>AI-ready text</strong>
+            Extract clean markdown-style text for LLM analysis.
+        </div>
+    </div>
+</div>
+
+<footer>
+    Built with Notion's API + WeasyPrint &nbsp;·&nbsp; <a href="https://github.com" target="_blank">Source</a>
+</footer>
+
+<script>
+const urlInput = document.getElementById('urlInput');
+const status = document.getElementById('status');
+const pdfBtn = document.getElementById('pdfBtn');
+const textBtn = document.getElementById('textBtn');
+const textPreview = document.getElementById('textPreview');
+const previewTitle = document.getElementById('previewTitle');
+const previewBody = document.getElementById('previewBody');
+
+// Enter key triggers PDF download
+urlInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleConvert('pdf');
+});
+
+function setStatus(type, msg) {
+    status.className = 'status ' + type;
+    if (type === 'loading') {
+        status.innerHTML = '<div class="spinner"></div>' + msg;
+    } else {
+        status.textContent = msg;
+    }
+}
+
+function setBusy(busy) {
+    pdfBtn.disabled = busy;
+    textBtn.disabled = busy;
+}
+
+async function handleConvert(format) {
+    const url = urlInput.value.trim();
+    if (!url) {
+        urlInput.focus();
+        setStatus('error', 'Paste a Notion URL first.');
+        return;
+    }
+
+    textPreview.style.display = 'none';
+    setBusy(true);
+    setStatus('loading', format === 'pdf' ? 'Converting to PDF…' : 'Extracting text…');
+
+    try {
+        const resp = await fetch('/api/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, format }),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || `Server error (${resp.status})`);
+        }
+
+        if (format === 'text') {
+            const data = await resp.json();
+            previewTitle.textContent = data.title || 'Extracted Text';
+            previewBody.textContent = data.text;
+            textPreview.style.display = 'block';
+            setStatus('success', `✓ Extracted ${data.text.length.toLocaleString()} characters`);
+        } else {
+            const blob = await resp.blob();
+            const cd = resp.headers.get('content-disposition') || '';
+            const match = cd.match(/filename="?([^"]+)"?/);
+            const filename = match ? match[1] : 'notion_page.pdf';
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+
+            const kb = (blob.size / 1024).toFixed(1);
+            setStatus('success', `✓ Downloaded ${filename} (${kb} KB)`);
+        }
+    } catch (e) {
+        setStatus('error', e.message);
+    } finally {
+        setBusy(false);
+    }
+}
+
+function copyText() {
+    const text = previewBody.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 1500);
+    });
+}
+</script>
+</body>
+</html>
