@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: notion-to-pdf
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
